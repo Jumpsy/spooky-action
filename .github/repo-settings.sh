@@ -44,9 +44,24 @@ gh api -X POST "repos/$repo/pages" \
   -f "source[branch]=main" -f "source[path]=/docs" 2>/dev/null ||
   gh api -X PUT "repos/$repo/pages" -f "source[branch]=main" -f "source[path]=/docs"
 
+# IndexNow — tells Bing, Yandex and the rest that the page exists. No account,
+# no dashboard; the key file next to the site is the whole proof of ownership.
+key=$(ls docs/*.txt 2>/dev/null | grep -E '/[0-9a-f]{32}\.txt$' | head -1)
+if [ -n "$key" ]; then
+  name=$(basename "$key" .txt)
+  curl -sS -X POST https://api.indexnow.org/indexnow \
+    -H 'Content-Type: application/json; charset=utf-8' \
+    -d '{"host":"jumpsy.github.io","key":"'"$name"'",
+         "keyLocation":"https://jumpsy.github.io/spooky-action/'"$name"'.txt",
+         "urlList":["https://jumpsy.github.io/spooky-action/"]}' \
+    -o /dev/null -w '  indexnow: %{http_code}\n'
+fi
+
 echo
-echo "  Two things left, both of which need a browser:"
+echo "  One thing left, and it needs a browser — GitHub has no API for it:"
 echo "    · Settings → Social preview → upload docs/img/og.jpg"
-echo "    · Submit https://jumpsy.github.io/spooky-action/sitemap.xml"
-echo "      to Google Search Console and Bing Webmaster Tools"
+echo
+echo "  Google Search Console is already verified for jumpsy.github.io via"
+echo "  docs/google470bab5cdf5e9d3a.html. Do not delete that file. If you"
+echo "  forked this, replace it with your own and submit sitemap.xml there."
 echo
