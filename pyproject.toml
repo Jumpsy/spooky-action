@@ -1,0 +1,45 @@
+[project]
+name = "spooky-action"
+version = "0.1.0"
+description = "Give an AI agent hands on your Mac — without giving it your mouse."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [{ name = "Jumpsy" }]
+keywords = [
+  "ai-agent", "computer-use", "claude-code", "accessibility", "macos",
+  "automation", "agent-tools", "mcp", "gui-automation",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: MacOS X",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: MacOS :: MacOS X",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+]
+dependencies = ["click>=8.1"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+spooky = "spooky.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/Jumpsy/spooky-action"
+Issues = "https://github.com/Jumpsy/spooky-action/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["spooky"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"spooky/overlay/Hands.swift" = "spooky/overlay/Hands.swift"
+"spooky/overlay/Presence.swift" = "spooky/overlay/Presence.swift"

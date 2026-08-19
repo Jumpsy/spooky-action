@@ -1,0 +1,14 @@
+# install.sh builds into here. Machine-specific.
+.venv/
+build/
+dist/
+*.egg-info/
+
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+*.dSYM/
+.DS_Store
