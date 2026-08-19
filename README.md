@@ -8,6 +8,18 @@ whatever you have. It presses the button, not a pixel. You watch it happen, and
 you can take the screen back at any moment by moving your mouse.
 </p>
 
+<p align="center">
+<a href="https://jumpsy.github.io/spooky-action/"><strong>jumpsy.github.io/spooky-action</strong></a> ·
+<a href="https://github.com/Jumpsy/agent-eyes">Agent Eyes, the other half</a>
+</p>
+
+<p align="center">
+<img src="docs/img/agent-acting.jpg" width="820"
+     alt="A Mac desktop edged in a yellow glow, with a drawn pointer resting on the Bold button in TextEdit and a pill at the top reading &quot;Tidying up a TextEdit draft&quot;.">
+</p>
+
+<p align="center"><em>A real screenshot. The pointer on the Bold button is drawn — the actual cursor never moved.</em></p>
+
 ```bash
 git clone https://github.com/Jumpsy/spooky-action.git
 cd spooky-action && ./install.sh
@@ -78,6 +90,11 @@ only appears while something is actually acting:
 - **A control bar** sits at the top with a pause button. Drag it anywhere; it
   remembers where you put it.
 
+<p align="center">
+<img src="docs/img/hud-agent.png" width="400" alt="The control bar in yellow, reading &quot;Tidying up a TextEdit draft&quot;.">
+<img src="docs/img/hud-you.png" width="400" alt="The same control bar in blue, reading &quot;You have the screen — the agent is waiting&quot;.">
+</p>
+
 ## Move your mouse and it stops
 
 ```bash
@@ -96,6 +113,13 @@ is told that too. The glow turns your colour while you hold it.
 
 A held lock expires on its own, so an agent that crashes mid-action cannot keep
 your screen.
+
+<p align="center">
+<img src="docs/img/you-have-the-screen.jpg" width="820"
+     alt="The same desktop mid-run with the glow now blue, and the pill reading &quot;You have the screen — the agent is waiting&quot;.">
+</p>
+
+<p align="center"><em>Mid-run, one mouse movement later. Nothing was cancelled — the agent is standing still and saying so.</em></p>
 
 ## Change anything
 

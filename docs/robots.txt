@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://jumpsy.github.io/spooky-action/sitemap.xml
