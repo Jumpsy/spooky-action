@@ -54,6 +54,25 @@ the action is refused (exit 65) instead of pressing whatever moved into slot
 between automation that can be left alone and automation that has to be
 watched.
 
+## Open a run before you do more than one thing
+
+```bash
+spooky begin "Filling in the expense form"    # glow comes up and stays up
+spooky say "Step 2 of 4 — attaching receipt"  # retitle it as you go
+spooky end                                    # glow comes down
+```
+
+Wrap every multi-step task in these. Without them each action lights the
+screen and drops it again a second later, so a dozen steps in a row read as a
+strobe — which looks like a fault, and teaches the user to ignore the one
+signal telling them a machine is driving.
+
+The run is yours to close. It expires on its own after 15 minutes (`--seconds`
+to change that) so a crash cannot leave the screen lit forever, but say `end`
+when you are done rather than waiting for that. It does not weaken the
+handover: if the user touches the mouse mid-run the screen is theirs that
+instant, and the run simply waits and picks back up.
+
 ## The commands
 
 ```bash
@@ -65,6 +84,10 @@ spooky type APP INDEX "text" --expect "Label"   # hands the field its value
 spooky click APP "Label"             # press by label, if exactly one matches
 spooky focus APP INDEX               # bring an app forward
 spooky at X,Y                        # what is at this point, identified
+
+spooky begin "what you are doing"    # open a run — do this first
+spooky say "where you are now"       # retitle the pill mid-run
+spooky end                           # close it when the task is done
 ```
 
 Add `--json` to any of them when you want to parse rather than read.

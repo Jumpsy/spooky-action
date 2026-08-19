@@ -34,6 +34,8 @@ let pausePath   = inHome("paused.flag")
 let configPath  = inHome("config.json")
 let hudPosPath  = inHome("hud-position")
 let pointerPath = inHome("pointer.json")
+let sessionPath = inHome("session.json")
+let labelPath   = inHome("label")
 
 func argStr(_ name: String, _ fallback: String) -> String {
     guard let i = CommandLine.arguments.firstIndex(of: name),
@@ -343,6 +345,7 @@ final class Presence {
     var paused = false
     let started = Date()
     var configSeen = Date.distantPast
+    var labelSeen = Date.distantPast
 
     // pointer animation, all in Quartz coordinates
     var pointerTarget: CGPoint?
@@ -352,10 +355,20 @@ final class Presence {
     var rippleStart: Date?
     var clickWhenArrived = false
 
-    func build() {
+    /// One glow window per display, rebuilt whenever the displays change.
+    ///
+    /// `contentRect` is measured from the origin of the screen you hand in, so
+    /// passing a screen *and* that screen's global frame placed every
+    /// secondary display's window one whole screen further out — off the side
+    /// of the monitor it was meant to cover. The primary screen starts at
+    /// zero, so it looked fine and only the second monitor went dark. No
+    /// `screen:` here: the frame is global, and setFrame says so out loud.
+    func syncScreens() {
+        for (w, _) in glows { w.orderOut(nil) }
+        glows.removeAll()
         for screen in NSScreen.screens {
             let w = NSWindow(contentRect: screen.frame, styleMask: .borderless,
-                             backing: .buffered, defer: false, screen: screen)
+                             backing: .buffered, defer: false)
             w.isOpaque = false
             w.backgroundColor = .clear
             w.hasShadow = false
@@ -363,12 +376,18 @@ final class Presence {
             w.level = NSWindow.Level(rawValue: Int(CGShieldingWindowLevel()))
             w.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle,
                                     .fullScreenAuxiliary]
-            w.alphaValue = 0
+            w.setFrame(screen.frame, display: false)
+            w.alphaValue = holder == .idle ? 0 : 1
             let v = BorderView(frame: NSRect(origin: .zero, size: screen.frame.size))
+            v.holder = holder
             w.contentView = v
             w.orderFrontRegardless()
             glows.append((w, v))
         }
+    }
+
+    func build() {
+        syncScreens()
 
         pointerWindow = NSWindow(contentRect: NSRect(origin: .zero, size: pointerSize),
                                  styleMask: .borderless, backing: .buffered, defer: false)
@@ -498,6 +517,37 @@ final class Presence {
         return false
     }
 
+    /// A run the agent opened and will close itself.
+    ///
+    /// The glow follows the *run*, not the individual clicks. An agent that
+    /// presses something every couple of seconds would otherwise strobe the
+    /// screen on and off between its own steps, which reads as a fault rather
+    /// than as work — and trains you to ignore it.
+    ///
+    /// This deliberately does *not* suppress user detection. The lock does
+    /// that, for the few milliseconds either side of synthetic input. Move
+    /// your mouse mid-run and the screen is yours immediately, exactly as it
+    /// is when no run is open; the run simply waits and picks back up.
+    func sessionActive() -> Bool {
+        guard let d = fm.contents(atPath: sessionPath),
+              let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
+              let until = j["until"] as? Double else { return false }
+        return until > Date().timeIntervalSince1970          // a crashed agent expires
+    }
+
+    /// What the pill says. The agent rewrites it as the job moves on, so it
+    /// describes the work rather than whichever click happened to start it.
+    func reloadLabelIfChanged() {
+        guard let at = try? fm.attributesOfItem(atPath: labelPath),
+              let m = at[.modificationDate] as? Date, m > labelSeen else { return }
+        labelSeen = m
+        let text = (try? String(contentsOfFile: labelPath, encoding: .utf8))?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        hudView.note = text.isEmpty ? taskLabel : String(text.prefix(60))
+        hudView.needsDisplay = true
+        write()
+    }
+
     func watch() {
         let mask: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged, .rightMouseDragged,
                                            .otherMouseDragged, .scrollWheel, .leftMouseDown]
@@ -507,6 +557,19 @@ final class Presence {
             self.lastUserMove = Date()
             if self.holder == .agent { self.set(.user, "you moved the mouse") }
         }
+        // Monitors get plugged in, unplugged, and rearranged, and this process
+        // outlives all of that. A glow built for a screen that no longer
+        // exists is worse than none — it is a promise the tool stops keeping.
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil, queue: .main) { [weak self] _ in
+                guard let self = self else { return }
+                self.syncScreens()
+                self.placeHUD()
+                self.write()
+                self.log(self.holder, "displays changed — glow rebuilt for \(NSScreen.screens.count)")
+        }
+
         // 60Hz, because the pointer is animating on this timer and anything
         // slower looks like it is teleporting between stops.
         Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
@@ -530,6 +593,7 @@ final class Presence {
     func tick() {
         if Date().timeIntervalSince(started) > cfg.maxSeconds { stop() }
         reloadConfigIfChanged()
+        reloadLabelIfChanged()
         // The flag file is the truth, not our copy of it — so `spooky
         // pause` from a terminal and the button on screen mean the same thing,
         // and neither can leave the other stuck.
@@ -542,7 +606,7 @@ final class Presence {
         readPointerCommand()
         animatePointer()
 
-        let acting = agentIsActing()
+        let acting = agentIsActing() || sessionActive()
         if acting { lastActed = Date() }
         let warm = Date().timeIntervalSince(lastActed) < cfg.linger
 
@@ -683,7 +747,8 @@ final class Presence {
             "since": Date().timeIntervalSince1970, "idle_seconds": cfg.idle,
             "pid": ProcessInfo.processInfo.processIdentifier,
             "screens": NSScreen.screens.count,
-            "hud": pinned == nil ? corner : "pinned", "label": taskLabel,
+            "hud": pinned == nil ? corner : "pinned", "label": hudView.note,
+            "session": sessionActive(),
         ]
         if let d = try? JSONSerialization.data(withJSONObject: payload) {
             try? d.write(to: URL(fileURLWithPath: statePath))

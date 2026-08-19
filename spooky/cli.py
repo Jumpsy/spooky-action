@@ -261,11 +261,52 @@ def control(as_json):
                                "events": presence.events()}, indent=2))
         return
     click.echo(f"\n  {verdict.message}")
+    if (run := presence.session()):
+        left = run["until"] - time.time()
+        click.echo(f"  run: {run['label']} — closes itself in {left / 60:.0f} min")
     click.echo(f"  overlay: {'running' if presence.running() else 'not running'}"
                f" · {state.get('screens', '?')} display(s) · HUD {state.get('hud', '?')}\n")
     for e in presence.events(limit=6):
         click.echo(f"    {e['holder']:<7} {e['why']}")
     click.echo("")
+
+
+@main.command()
+@click.argument("label", default="Spooky Action is working")
+@click.option("--seconds", type=float, default=900.0,
+              help="How long before the run closes itself if you never do.")
+@click.option("--json", "as_json", is_flag=True)
+def begin(label, seconds, as_json):
+    """Open a run — the glow stays up until `spooky end`.
+
+    Use this whenever you are about to do more than one thing. Without it each
+    action lights the screen up and drops it again a second later, and a dozen
+    steps in a row read as a strobe rather than as work.
+    """
+    try:
+        presence.begin(label, seconds=seconds)
+    except Exception as exc:
+        _refused(exc, as_json)
+    _out({"label": label, "seconds": seconds}, as_json,
+         f"  ✓ the screen is yours — {label}\n"
+         f"    it closes itself in {seconds / 60:.0f} min if you forget `spooky end`")
+
+
+@main.command()
+@click.option("--json", "as_json", is_flag=True)
+def end(as_json):
+    """Close the run and take the glow down."""
+    was = presence.end()
+    _out({"was_open": was}, as_json,
+         "  ✓ done — screen released" if was else "  Nothing was open.")
+
+
+@main.command()
+@click.argument("text")
+def say(text):
+    """Retitle the on-screen pill mid-run, so it says what is happening now."""
+    presence.set_label(text)
+    click.echo(f"  Pill now reads: {text}")
 
 
 @main.command()

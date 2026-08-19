@@ -161,11 +161,18 @@ def type_into(app: str, index: int, text: str, *, expect: str | None = None,
 
 
 def focus(app: str, index: int | None = None) -> dict:
-    args = ["focus", "--app", app]
-    if index is not None:
-        args += ["--index", str(index)]
-    presence.touch()
-    return run(*args)
+    """Bring an app forward — or one element inside it.
+
+    This takes the screen like every other action. Raising a window moves
+    something the user is looking at, and an action nobody can see is the one
+    thing this tool exists to prevent; marking it as ours without putting the
+    glow up left it invisible whenever the overlay was not already running.
+    """
+    with presence.hold(f"Focusing {app}"):
+        args = ["focus", "--app", app]
+        if index is not None:
+            args += ["--index", str(index)]
+        return run(*args)
 
 
 def at(x: float, y: float) -> dict:

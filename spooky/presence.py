@@ -43,6 +43,8 @@ STAMP = "agent-input.stamp"
 STATE = "control.json"
 EVENTS = "control-events.jsonl"
 PAUSED = "paused.flag"
+SESSION = "session.json"
+LABEL = "label"
 
 
 # --------------------------------------------------------------------------
@@ -254,6 +256,71 @@ def events(since: float = 0.0, limit: int = 50) -> list[dict]:
 # holding the screen
 
 
+# --------------------------------------------------------------------------
+# a run, which the agent opens and closes itself
+#
+# One press is not a task. An agent filling in a form does a dozen of them
+# with thinking in between, and if the glow tracked each one it would blink
+# on and off all the way down the form — which looks like a fault, and teaches
+# you to stop looking at it. So the agent says when it starts and when it is
+# done, and the screen shows one continuous run in between.
+#
+# The run does not weaken the handover. It keeps the glow up; the lock, which
+# is the thing that decides whether a movement was yours, is still taken and
+# released around each individual action. Touch the mouse mid-run and it is
+# your screen that instant.
+
+
+def begin(label: str = "Spooky Action is working", *, seconds: float = 900.0,
+          wait: bool = True) -> Verdict:
+    """Open a run. Pair it with `end()` — or let the expiry close it for you."""
+    start(label)
+    verdict = wait_for_screen() if wait else check()
+    if not verdict.allowed:
+        raise PermissionError(verdict.message)
+    payload = {"label": label[:60], "until": time.time() + seconds,
+               "pid": os.getpid(), "at": time.time()}
+    tmp = _f(SESSION + ".tmp")
+    tmp.write_text(json.dumps(payload))
+    tmp.replace(_f(SESSION))
+    set_label(label)
+    return verdict
+
+
+def session() -> dict | None:
+    """The open run, if there is one and it has not expired."""
+    try:
+        s = json.loads(_f(SESSION).read_text())
+    except (OSError, ValueError):
+        return None
+    return s if float(s.get("until", 0)) > time.time() else None
+
+
+def end() -> bool:
+    """Close the run and give the screen back. Safe to call twice."""
+    was = session() is not None
+    for name in (SESSION, LOCK):
+        _f(name).unlink(missing_ok=True)
+    _f(STAMP).touch()
+    set_label("")
+    return was
+
+
+def set_label(text: str) -> None:
+    """Retitle the pill mid-run, so it says what is happening now."""
+    _f(LABEL).write_text(text[:60])
+
+
+@contextlib.contextmanager
+def run_session(label: str = "Spooky Action is working", *, seconds: float = 900.0):
+    """`begin` and `end` as a block, for callers that can hold one."""
+    begin(label, seconds=seconds)
+    try:
+        yield
+    finally:
+        end()
+
+
 @contextlib.contextmanager
 def hold(label: str = "Spooky Action is acting", *, seconds: float = 30.0, wait: bool = True):
     """Take the screen for one batch of actions, and give it straight back.
@@ -264,7 +331,9 @@ def hold(label: str = "Spooky Action is acting", *, seconds: float = 30.0, wait:
     crashed agent cannot leave the screen locked — the worst case is that the
     glow stays up for `seconds` and then clears itself.
     """
-    start(label)
+    if session() is None:
+        start(label)
+        set_label(label)
     verdict = wait_for_screen() if wait else check()
     if not verdict.allowed:
         raise PermissionError(verdict.message)
@@ -281,5 +350,11 @@ def hold(label: str = "Spooky Action is acting", *, seconds: float = 30.0, wait:
 
 
 def touch() -> None:
-    """Mark a single action outside a batch as the agent's own."""
+    """Mark a single action outside a batch as the agent's own.
+
+    Brings the overlay up first. The stamp only decides *who* an action
+    belonged to; without something on screen to colour, marking it changes
+    nothing anyone can see.
+    """
+    start()
     _f(STAMP).touch()
